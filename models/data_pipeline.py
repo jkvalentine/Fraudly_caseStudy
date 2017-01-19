@@ -44,7 +44,6 @@ def get_data():
 	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.3, random_state=1234)
 	return X_train, X_test, y_train, y_test
 
-
 def feature_engineering(df):
 
 	# are there any previous payouts?
@@ -67,9 +66,9 @@ def feature_engineering(df):
 	#num of tix for sale (from ticket types)
 	df['num_tix_total'] = df.ticket_types.apply(get_tix, args=("quantity_total",))
 	# num of tix sold (from ticket types)
-	df['num_tix_sold_by_event'] = df.ticket_types.apply(get_tix, args=("quantity_sold",))	
+	df['num_tix_sold_by_event'] = df.ticket_types.apply(get_tix, args=("quantity_sold",))
 	# previous tix sold (from previous_payouts)
-	df['num_payouts'] = df.previous_payouts.apply(lambda x: len(x))	
+	df['num_payouts'] = df.previous_payouts.apply(lambda x: len(x))
 
 	#emails:
 	df['email_gmail'] = (df.email_domain == "gmail.com").astype(int)
@@ -97,7 +96,8 @@ def feature_engineering(df):
 
 	# make columns according to latent topics
 	# df = topic_dummies(df)
-	cols_to_keep = ['has_previous_payouts', 'gts_is_0', 'gts_less_10', 'gts_less_25', 'venue_outside_user_country', 'num_tix_total', 'num_tix_sold_by_event', 'num_payouts', 'email_gmail', 'email_yahoo', 'email_hotmail','email_aol','email_com', 'email_org', 'email_edu','approx_payout_date', 'sale_duration2', 'num_order', 'body_length', 'high_fraud_country', 'exclamation_points', 'caps_proportion']
+	cols_to_keep = ['has_previous_payouts', 'gts_is_0', 'gts_less_10', 'gts_less_25', 'venue_outside_user_country', 'num_tix_total', 'num_tix_sold_by_event', 'num_payouts', 'email_gmail', 'email_yahoo', 'email_hotmail','email_aol','email_com', 'email_org', 'email_edu','approx_payout_date', 'sale_duration2', 'num_order', 'body_length', 'high_fraud_country', 'exclamation_points']
+
 	return df[cols_to_keep]
 
 
@@ -127,7 +127,7 @@ def test_train_split(X, y):
 	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.3)
 	return X_train, X_test, y_train, y_test
 
-def replace_delivery_nans(df): 
+def replace_delivery_nans(df):
 	df['delivery_method'].ix[df['delivery_method'].isnull()] = 10.0
 	return df
 
@@ -197,7 +197,7 @@ def smote(X, y, target, k=None):
 	"""
 	INPUT:
 	X, y - your data
-	target - the percentage of positive class 
+	target - the percentage of positive class
 	     observations in the output
 	k - k in k nearest neighbors
 	OUTPUT:
@@ -243,7 +243,7 @@ def smote2(X, y, target, k=None):
 	"""
 	INPUT:
 	X, y - your data
-	target - the percentage of positive class 
+	target - the percentage of positive class
 	     observations in the output
 	k - k in k nearest neighbors
 	OUTPUT:
@@ -262,23 +262,23 @@ def smote2(X, y, target, k=None):
 	else:
 	y_minority = y_ones
 	X_minority = X_ones
-	# fit a KNN model    
-	# This has to be called on the minority bunch only!!!!!    
+	# fit a KNN model
+	# This has to be called on the minority bunch only!!!!!
 	nbrs = NearestNeighbors(n_neighbors=k, algorithm='ball_tree').fit(X_minority)
 	distances, indices = nbrs.kneighbors(X_minority)
-	# determine how many new positive observations to generate    
-	target = float(target)    
+	# determine how many new positive observations to generate
+	target = float(target)
 	N_new_data = (len(y)*target - len(y_minority))/(1-target)
 	# adding to the zeros
 	ind_new = np.random.randint(0,len(y_minority),N_new_data)
 	# generate synthetic observations
 	y_synth = np.zeros(len(N_new_data))
-	X_synth = []        
+	X_synth = []
 	for value in ind_new:
-	r = np.random(0, k)           
+	r = np.random(0, k)
 	neighbor_index = indices[value, r]
-	distances = np.random.random(0, 1, len(X_minority.columns))            
-	new_point = X_minority[value] + distances*(X_minority[value]-X_minority[neighbor_index])            
+	distances = np.random.random(0, 1, len(X_minority.columns))
+	new_point = X_minority[value] + distances*(X_minority[value]-X_minority[neighbor_index])
 	X_synth.append = new_point
 	# combine synthetic observations with original observations
 	X_smoted = np.concatenate((X_ones, X_zeros, X_synth),axis=1)
