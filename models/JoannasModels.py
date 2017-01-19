@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import data_pipeline
 import cPickle as pickle
 from data_pipeline import get_data, feature_engineering, get_tix, scale_data
+import seaborn as sb
 
 def random_forrest_class_balence(scaler_train, scaler_test):
 
@@ -16,9 +17,11 @@ def random_forrest_class_balence(scaler_train, scaler_test):
     rf =  RandomForestClassifier(n_estimators=3, oob_score=True, class_weight={1:9})
     rf.fit(scaler_train, y1_train)
     scaler_test_predict = rf.predict(scaler_test)
+
     rs = recall_score(scaler_test_predict, y1_test)
     ps = precision_score(scaler_test_predict, y1_test)
     f1 = f1_score(y1_test, scaler_test_predict)
+    cm_rf =  confusion_matrix(scaler_test_predict, y1_test)
     print 'random forrest'
     print "recall_score", rs
     print 'precision_score', ps
@@ -31,7 +34,7 @@ def random_forrest_class_balence(scaler_train, scaler_test):
     filename = 'rf.pickle'
     save_to_pickle(filename, rf)
 
-    return rf
+    return rf, cm_rf
     #recall_score 0.944134078212
     #precision_score 0.871134020619
     #accuracy score: 0.982561036373
@@ -39,12 +42,17 @@ def random_forrest_class_balence(scaler_train, scaler_test):
 def gdbr(scaler_train, scaler_test):
     gdbr = GradientBoostingClassifier(learning_rate=0.03,
                                  n_estimators=150, random_state=1)
+    # weights = y1_train
+    # weights.loc[weights==1] = 20
+    # weights.loc[weights==0] = 80
+
     gdbr.fit(scaler_train, y1_train)
     scaler_test_predict = gdbr.predict(scaler_test)
 
     rs = recall_score(scaler_test_predict, y1_test)
     ps = precision_score(scaler_test_predict, y1_test)
-    f1 = f1_score(y1_test, scaler_test_predict)   #F1 = 2 * (precision * recall) / (precision + recall)
+    f1 = f1_score(y1_test, scaler_test_predict)
+    cm = confusion_matrix(scaler_test_predict, y1_test)   #F1 = 2 * (precision * recall) / (precision + recall)
     print 'gdbr'
     print "recall_score", rs
     print 'precision_score', ps
@@ -57,7 +65,7 @@ def gdbr(scaler_train, scaler_test):
     #recall_score 0.958333333333
     #precision_score 0.879781420765
     #accuracy score: 0.985550572995
-    return gdbr
+    return gdbr, cm
 
 def cross_val(estimator, train_x, train_y):
     # n_jobs=-1 uses all the cores on your machine
@@ -90,21 +98,78 @@ def save_to_pickle(filename, model):
         pickle.dump(model, f)
 
 
+def standard_confusion_matrix(y_true, y_predict):
+    [[tn, fp], [fn, tp]] = confusion_matrix(y_true, y_predict)
+    return np.array([[tp, fp], [fn, tn]])
+
+def profit_curve(cost_benefit_matrix, probabilities, y_true):
+    thresholds = sorted(probabilities)
+    thresholds.append(1.0)
+    profits = []
+    for threshold in thresholds:
+        y_predict = probabilities >= threshold
+        confusion_mat = standard_confusion_matrix(y_true, y_predict)
+        profit = np.sum(confusion_mat * cost_benefit_matrix) / float(len(y_true))
+        profits.append(profit)
+    return thresholds, profits
+
+def run_profit_curve(model, costbenefit, X_train, X_test, y_train, y_test):
+    model.fit(X_train, y_train)
+    probabilities = model.predict_proba(X_test)[:, 1]
+    thresholds, profits = profit_curve(costbenefit, probabilities, y_test)
+    return thresholds, profits
+
+def plot_profit_models(models, costbenefit, X_train, X_test, y_train, y_test):
+    percentages = np.linspace(0, 100, len(y_test) + 1)
+    for model in models:
+        thresholds, profits = run_profit_curve(model,
+                                               costbenefit,
+                                               X_train, X_test,
+                                               y_train, y_test)
+        plt.plot(percentages, profits, label=model.__class__.__name__)
+    plt.title("Profit Curves")
+    plt.xlabel("Percentage of test instances (decreasing by score)")
+    plt.ylabel("Profit")
+    plt.legend(loc='upper left')
+    plt.savefig('profit_curve.png')
+    plt.show()
+
+def find_best_threshold(models, costbenefit, X_train, X_test, y_train, y_test):
+    max_model = None
+    max_threshold = None
+    max_profit = None
+    for model in models:
+        thresholds, profits = run_profit_curve(model, costbenefit,
+                                               X_train, X_test,
+                                               y_train, y_test)
+        max_index = np.argmax(profits)
+        if not max_model or profits[max_index] > max_profit:
+            max_model = model.__class__.__name__
+            max_threshold = thresholds[max_index]
+            max_profit = profits[max_index]
+    return max_model, max_threshold, max_profit
+
 if __name__ == '__main__':
     X_train, X_test, y_train, y_test = get_data()
     X1_train, x1_test, y1_train, y1_test = train_test_split(X_train, y_train, test_size=.2)
-    # columns = ['approx_payout_date', 'gts', 'previous_payouts', 'sale_duration2', 'num_order', 'body_length', 'venue_country!=country']
-    columns = ['has_previous_payouts', 'gts_is_0', 'gts_less_10', 'gts_less_25', 'venue_outside_user_country', 'num_tix_total', 'num_tix_sold_by_event', 'num_payouts', 'email_gmail', 'email_yahoo', 'email_hotmail','email_aol','email_com', 'email_org', 'email_edu','approx_payout_date', 'sale_duration2', 'num_order', 'body_length']
+    columns = ['has_previous_payouts', 'gts_is_0', 'gts_less_10', 'gts_less_25', 'venue_outside_user_country', 'num_tix_total', 'num_tix_sold_by_event', 'num_payouts', 'email_gmail', 'email_yahoo', 'email_hotmail','email_aol','email_com', 'email_org', 'email_edu','approx_payout_date', 'sale_duration2', 'num_order', 'body_length', 'high_fraud_country', 'exclamation_points']
 
-    x_feature_train = feature_engineering(X1_train)[columns]
-    x_feature_test = feature_engineering(x1_test)[columns]
+
+    x_feature_train = feature_engineering(X1_train)
+    x_feature_test = feature_engineering(x1_test)
 
     scaler_train, scaler_test = scale_data(x_feature_train, x_feature_test)
 
-    rf2 = random_forrest_class_balence(scaler_train, scaler_test)
-    gdbr = gdbr(scaler_train, scaler_test)
+    rf2, cm_rf = random_forrest_class_balence(scaler_train, scaler_test)
+    gdbr, cm_gdbr = gdbr(scaler_train, scaler_test)
 
     cross_val(rf2, scaler_train, y1_train)
     cross_val(gdbr, scaler_train, y1_train)
 
     plot_feature_importance()
+
+    costbenefit = np.array([[100, 0], [-200, 0]])
+    models = [rf2, gdbr]
+    plot_profit_models(models, costbenefit, scaler_train, scaler_test, y1_train, y1_test)
+    print find_best_threshold(models, costbenefit,
+                             scaler_train, scaler_test, y1_train, y1_test)
