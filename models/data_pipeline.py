@@ -86,11 +86,8 @@ def feature_engineering(df):
 	# high_fraud=df.groupby('country').mean()[fraud_bools]
 	# high_fraud_countries = high_fraud.index
 	# df['high_fraud_country'] = df.country.apply(lambda x: x in high_fraud_countries).astype(int)
-	fraudy_countries = [u'A1', u'AR', u'BG', u'CH', u'CI', u'CM', u'CN', u'CO', u'CZ', u'DE',
-      u'DK', u'DZ', u'FI', u'HR', u'ID', u'IL', u'JE', u'JM', u'KH', u'MA',
-      u'MY', u'NA', u'NG', u'PH', u'PK', u'PR', u'PS', u'QA', u'RU', u'TR',
-      u'VN']
-    df['high_fraud_country'] = df.country.apply(lambda x: 1 if x in fraudy_countries else 0)
+	fraudy_countries = [u'A1', u'AR', u'BG', u'CH', u'CI', u'CM', u'CN', u'CO', u'CZ', u'DE', u'DK', u'DZ', u'FI', u'HR', u'ID', u'IL', u'JE', u'JM', u'KH', u'MA', u'MY', u'NA', u'NG', u'PH', u'PK', u'PR', u'PS', u'QA', u'RU', u'TR', u'VN']
+	df['high_fraud_country'] = df.country.apply(lambda x: 1 if x in fraudy_countries else 0)
 
 	# get number of exclamation marks
 	df['exclamation_points'] = df['description'].apply(count_bangs)
@@ -99,8 +96,10 @@ def feature_engineering(df):
 	df['caps_proportion'] = df['description'].apply(caps_prop)
 
 	# make columns according to latent topics
-	df = topic_dummies(df)
-	return df
+	# df = topic_dummies(df)
+	cols_to_keep = ['has_previous_payouts', 'gts_is_0', 'gts_less_10', 'gts_less_25', 'venue_outside_user_country', 'num_tix_total', 'num_tix_sold_by_event', 'num_payouts', 'email_gmail', 'email_yahoo', 'email_hotmail','email_aol','email_com', 'email_org', 'email_edu','approx_payout_date', 'sale_duration2', 'num_order', 'body_length', 'high_fraud_country', 'exclamation_points', 'caps_proportion']
+	return df[cols_to_keep]
+
 
 def count_bangs(description_string):
    char_count = Counter(description_string)
@@ -253,35 +252,26 @@ def smote2(X, y, target, k=None):
 	For details, see: https://www.jair.org/media/953/live-953-2037-jair.pdf
 	"""
 	'''
-
 	y_zeros = y[y==0]
 	X_zeros = X[y==0]
-
 	y_ones = y[y==1]
 	X_ones = X[y==1]
-
 	if len(y_ones) > len(y_zeros):
 	y_minority = y_zeros
 	X_minority = X_zeros
 	else:
 	y_minority = y_ones
 	X_minority = X_ones
-
 	# fit a KNN model    
 	# This has to be called on the minority bunch only!!!!!    
 	nbrs = NearestNeighbors(n_neighbors=k, algorithm='ball_tree').fit(X_minority)
 	distances, indices = nbrs.kneighbors(X_minority)
-
 	# determine how many new positive observations to generate    
 	target = float(target)    
 	N_new_data = (len(y)*target - len(y_minority))/(1-target)
-
 	# adding to the zeros
 	ind_new = np.random.randint(0,len(y_minority),N_new_data)
-
-
 	# generate synthetic observations
-
 	y_synth = np.zeros(len(N_new_data))
 	X_synth = []        
 	for value in ind_new:
@@ -290,11 +280,9 @@ def smote2(X, y, target, k=None):
 	distances = np.random.random(0, 1, len(X_minority.columns))            
 	new_point = X_minority[value] + distances*(X_minority[value]-X_minority[neighbor_index])            
 	X_synth.append = new_point
-
 	# combine synthetic observations with original observations
 	X_smoted = np.concatenate((X_ones, X_zeros, X_synth),axis=1)
 	y_smoted = np.concatenate((y_ones, y_zeros, y_synth),axis=1)
-
 	return X_smoted, y_smoted
 	'''
 	pass
