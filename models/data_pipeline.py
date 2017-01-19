@@ -9,6 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import NMF
 from bs4 import BeautifulSoup
 from collections import Counter
+import string
 
 
 def get_data():
@@ -40,16 +41,17 @@ def get_data():
 		u'venue_country',     u'venue_latitude',    u'venue_longitude',
 		   u'venue_name',        u'venue_state',              ]]
 
-	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.3)
+	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.3, random_state=1234)
 	return X_train, X_test, y_train, y_test
 
 
 def feature_engineering(df):
 	# Make a single binary column for fraud
-	df['fraud'] = 0
-	df.loc[df['acct_type'] == 'fraudster_event', 'fraud'] = 1
-	df.loc[df['acct_type'] == 'fraudster', 'fraud'] = 1
-	df.loc[df['acct_type'] == 'fraudster_att', 'fraud'] = 1
+	if "acct_type" in df.columns:
+		df['fraud'] = 0
+		df.loc[df['acct_type'] == 'fraudster_event', 'fraud'] = 1
+		df.loc[df['acct_type'] == 'fraudster', 'fraud'] = 1
+		df.loc[df['acct_type'] == 'fraudster_att', 'fraud'] = 1
 	#Check
 	#print "Should be 1293, it is... "+ sum(df['fraud']).  It is! :)
 
@@ -87,14 +89,22 @@ def feature_engineering(df):
 	df['email_edu'] = (df.email_domain.apply(lambda x: x[-3:]) == "edu").astype(int)
 
 	#fraudy countries
-	fraud_one_sd_above = np.mean(df['fraud']) + np.std(df['fraud'])
-	fraud_bools = df.groupby('country').mean()['fraud'] > fraud_one_sd_above
-	high_fraud=df.groupby('country').mean()[fraud_bools]
-	high_fraud_countries = high_fraud.index
-	df['high_fraud_country'] = df.country.apply(lambda x: x in high_fraud_countries).astype(int)
-	
+	# fraud_one_sd_above = np.mean(df['fraud']) + np.std(df['fraud'])
+	# fraud_bools = df.groupby('country').mean()['fraud'] > fraud_one_sd_above
+	# high_fraud=df.groupby('country').mean()[fraud_bools]
+	# high_fraud_countries = high_fraud.index
+	# df['high_fraud_country'] = df.country.apply(lambda x: x in high_fraud_countries).astype(int)
+	fraudy_countries = [u'A1', u'AR', u'BG', u'CH', u'CI', u'CM', u'CN', u'CO', u'CZ', u'DE',
+      u'DK', u'DZ', u'FI', u'HR', u'ID', u'IL', u'JE', u'JM', u'KH', u'MA',
+      u'MY', u'NA', u'NG', u'PH', u'PK', u'PR', u'PS', u'QA', u'RU', u'TR',
+      u'VN']
+    df['high_fraud_country'] = df.country.apply(lambda x: 1 if x in fraudy_countries else 0)
+
 	# get number of exclamation marks
 	df['exclamation_points'] = df['description'].apply(count_bangs)
+
+	# get proportion of caps
+	df['caps_proportion'] = df['description'].apply(caps_prop)
 
 	# make columns according to latent topics
 	df = topic_dummies(df)
@@ -104,6 +114,9 @@ def count_bangs(description_string):
    char_count = Counter(description_string)
    return char_count['!']
 
+def caps_prop(description_string):
+   if description_string:
+       return len(filter(lambda x: x in string.uppercase, description_string))/len(description_string)
 
 def scale_data(x_train, x_test):
 	scaler = preprocessing.StandardScaler()
