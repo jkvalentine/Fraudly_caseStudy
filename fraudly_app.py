@@ -47,7 +47,7 @@ def predict():
 	else:
 		message = "not fraud"
 
-	return render_template('/predict.html', message=message)
+	return render_template('/predict.html', prediction=prediction, id=data['object_id'] ,message=message)
 
 
 
