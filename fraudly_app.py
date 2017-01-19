@@ -1,8 +1,9 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, jsonify
 import json
 import requests
 import socket
 import time
+import cPickle as pickle
 import pandas as pd
 from models import data_pipeline
 from datetime import datetime
@@ -12,12 +13,12 @@ app = Flask(__name__)
 PORT = 8080
 
 #unpickle model
-with open('../best_model.pkl') as f:
+with open('rf.pickle') as f:
 	model = pickle.load(f)
 
 #unpickle tfidf
-with open('../tfidf.pkl') as g:
-	tfidf = pickle.load(g)
+#with open('../tfidf.pkl') as g:
+#	tfidf = pickle.load(g)
 
 
 @app.route('/index')
@@ -26,24 +27,27 @@ def index():
 
 	return render_template('index.html')
 
-@app.route('/predict', methods=['POST'])
+@app.route('/predict')
 def predict():
 	#Recieve heroku data
-	data = requests.get('http://galvanize-case-study-on-fraud.herokuapp.com/data_point')
-
+	raw_data = requests.get('http://galvanize-case-study-on-fraud.herokuapp.com/data_point')
+	data = raw_data.json()
 	#Read batches of json files from NoSQL database
 
 	#read json file into dataframe
-	df = pd.read_json(data)
+	df = pd.Series(data, index = data.keys()).to_frame().T
 
 	#transform data through data pipeline
-
-
+	df_features = data_pipeline.feature_engineering(df)
 
 	#do model prediction
-	model.predict()
+	prediction = model.predict(df_features)
+	if prediction == 1:
+		message = "fraud"
+	else:
+		message = "not fraud"
 
-	return 
+	return render_template('/predict.html')
 
 
 
