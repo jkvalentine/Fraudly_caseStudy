@@ -6,39 +6,19 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 from sklearn.ensemble import GradientBoostingClassifier
 import matplotlib.pyplot as plt
-import data_pipeline 
-
+import data_pipeline
+import cPickle as pickle
 from data_pipeline import get_data, feature_engineering, get_tix, scale_data
 
-# def random_forrest(scaler_train, scaler_test):
-
-#     #random_forrest
-#     rf =  RandomForestClassifier(n_estimators=3, oob_score=True)
-#     rf.fit(scaler_train, y1_train)
-#     scaler_test_predict = rf.predict(scaler_test)
-
-#     rs = recall_score(scaler_test_predict, y1_test)
-#     ps = precision_score(scaler_test_predict, y1_test)
-#     print "recall_score", rs
-#     print 'precision_score', ps
-#     print " accuracy score:", rf.score(scaler_test, y1_test)
-#     feature_importances = np.argsort(rf.feature_importances_)
-#     print " top 10 features:", list(x_feature_train.columns[feature_importances[-1:-10:-1]])
-#     return rf
-#     #recall_score 0.909090909091
-#     #precision_score 0.925925925926
-#     #accuracy score: 0.986547085202
-#     #['has_previous_payouts', 'num_tix_sold_by_event', u'num_payouts', u'approx_payout_date', 'num_tix_total', u'sale_duration2', u'body_length', u'num_order', 'email_com']
 def random_forrest_class_balence(scaler_train, scaler_test):
 
     #random_forrest
     rf =  RandomForestClassifier(n_estimators=3, oob_score=True, class_weight={1:9})
     rf.fit(scaler_train, y1_train)
     scaler_test_predict = rf.predict(scaler_test)
-
     rs = recall_score(scaler_test_predict, y1_test)
-    ps = precision_score(scaler_test_predict, y1_test) 
-    f1 = f1_score(y1_test, scaler_test_predict) 
+    ps = precision_score(scaler_test_predict, y1_test)
+    f1 = f1_score(y1_test, scaler_test_predict)
     print 'random forrest'
     print "recall_score", rs
     print 'precision_score', ps
@@ -48,6 +28,8 @@ def random_forrest_class_balence(scaler_train, scaler_test):
     print " top 10 features:", list(x_feature_train.columns[feature_importances[-1:-10:-1]])
     print "confusion_matrix:", confusion_matrix(scaler_test_predict, y1_test)
     print '------------------------------------------------------'
+    filename = 'rf.pickle'
+    save_to_pickle(filename, rf)
 
     return rf
     #recall_score 0.944134078212
@@ -57,22 +39,21 @@ def random_forrest_class_balence(scaler_train, scaler_test):
 def gdbr(scaler_train, scaler_test):
     gdbr = GradientBoostingClassifier(learning_rate=0.03,
                                  n_estimators=150, random_state=1)
-    # weights = y1_train
-    # weights.loc[weights==1] = 20
-    # weights.loc[weights==0] = 80
-
     gdbr.fit(scaler_train, y1_train)
     scaler_test_predict = gdbr.predict(scaler_test)
 
     rs = recall_score(scaler_test_predict, y1_test)
-    ps = precision_score(scaler_test_predict, y1_test) 
+    ps = precision_score(scaler_test_predict, y1_test)
     f1 = f1_score(y1_test, scaler_test_predict)   #F1 = 2 * (precision * recall) / (precision + recall)
     print 'gdbr'
     print "recall_score", rs
     print 'precision_score', ps
-    print "f1 score", f1 
+    print "f1 score", f1
     print " accuracy score:", gdbr.score(scaler_test, y1_test)
     print "confusion_matrix:", confusion_matrix(scaler_test_predict, y1_test)
+
+    filename = 'gdbr.pickle'
+    save_to_pickle(filename, gdbr)
     #recall_score 0.958333333333
     #precision_score 0.879781420765
     #accuracy score: 0.985550572995
@@ -103,6 +84,10 @@ def plot_feature_importance():
     plt.xticks(fontsize=14)
     _ = plt.xlabel('Relative importance', fontsize=18)
     plt.show()
+
+def save_to_pickle(filename, model):
+    with open(filename, 'w') as f:
+        pickle.dump(model, f)
 
 
 if __name__ == '__main__':
