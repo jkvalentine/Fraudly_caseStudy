@@ -1,5 +1,7 @@
 # profit curves
 import numpy as np 
+import cPickle as pickle
+import pandas as pd
 
 # confusion matrix:
 
@@ -21,6 +23,23 @@ def profit_curve(cb, predict_probas, labels):
         Perc_Pred_Pos.append((predict_probas>threshold).sum()/len(predict_probas))
     return profits[::-1]
 
+def plot_profit_curve(model, label, costbenefit, X_test, y_test):
+    
+    # model should be fitted already (maybe from a pickle)
+    model_instance = model
+    # model_instance.fit(X_train,y_train)  
+    predict_probas = model_instance.predict_proba(X_test)
+    profits = profit_curve(costbenefit, predict_probas[:,1], y_test)
+    
+    percentages = np.arange(0, 100, 100. / len(profits))
+    
+    plt.plot(percentages, profits, label=label)
+    plt.title("Profit Curve Per Person")
+    plt.xlabel("Percentage of test instances (decreasing by score)")
+    plt.ylabel("Profit")
+    plt.legend(loc='lower right')    
+    plt.show()
+#     return percentages, profits
 
 if __name__ == '__main__':
 	tp = 11
@@ -29,10 +48,8 @@ if __name__ == '__main__':
 	tn = 3
 	# cost-benefit matrix
 	cb_matrix = np.array([[tp, fp],[fn,tn]])
-	profits = profit_curve(cb_matrix, predict_probas, labels)
-	percentages = np.arange(0, 100, 100. / len(profits))
-	plt.title("Profit Curve")
-	plt.xlabel("Percentage of test instances (decreasing by score)")
-	plt.ylabel("Profit")
-	plt.legend(loc='lower right')
-	plt.show()
+	with open('data/model.pkl') as f:
+	model = pickle.load(f)
+	plot_profit_curve(model,'model',cb_matrix, X_test, y_test)
+	
+	
