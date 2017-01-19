@@ -1,9 +1,15 @@
-
 import pandas as pd
 import numpy as np
 from sklearn.cross_validation import train_test_split, cross_val_score
 from sklearn.neighbors import NearestNeighbors
 from sklearn import preprocessing
+from sklearn.feature_extraction import text
+from numpy.linalg import lstsq
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import NMF
+from bs4 import BeautifulSoup
+from collections import Counter
+
 
 def get_data():
 	df = pd.read_json('data/data.json')
@@ -86,7 +92,18 @@ def feature_engineering(df):
 	high_fraud=df.groupby('country').mean()[fraud_bools]
 	high_fraud_countries = high_fraud.index
 	df['high_fraud_country'] = df.country.apply(lambda x: x in high_fraud_countries).astype(int)
+	
+	# get number of exclamation marks
+	df['exclamation_points'] = df['description'].apply(count_bangs)
+
+	# make columns according to latent topics
+	df = topic_dummies(df)
 	return df
+
+def count_bangs(description_string):
+   char_count = Counter(description_string)
+   return char_count['!']
+
 
 def scale_data(x_train, x_test):
 	scaler = preprocessing.StandardScaler()
@@ -102,7 +119,7 @@ def create_X_and_y(df):
 	X = df.drop('fraud')
 	return X, y
 
-def test_train_split(X, y)
+def test_train_split(X, y):
 	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.3)
 	return X_train, X_test, y_train, y_test
 
@@ -116,6 +133,62 @@ def get_tix(ticket_types, value):
 		total += ticket[value]
 	return total
 
+def topic_dummies(df):
+
+    #CLEAN HTML FUNCTION
+    def get_text(cell):
+        return BeautifulSoup(cell, 'html.parser').get_text()
+
+    #Parse descriptions using html function above:
+    df['description'] = df['description'].apply(get_text)
+    df['org_desc'] = df['org_desc'].apply(get_text)
+    clean = df['description']
+
+    #All the parameters for the topic modeling.
+    n_samples = len(clean)
+    n_features = 500
+    n_topics = 9
+    n_top_words = 30
+
+    my_additional_stopwords = ["la", "et", "en", "le", "les", "des", 'january', 'february',
+                           'march', 'april', 'may', 'june', 'july', 'august', 'september',
+                           'october', 'november', 'december', 'friday', 'thursday', 'saturday']
+    stop_words = text.ENGLISH_STOP_WORDS.union(my_additional_stopwords)
+
+
+    # Use tf-idf features for NMF.
+    tfidf_vectorizer = TfidfVectorizer(max_df=0.95, min_df=2,
+                                       max_features=n_features,
+                                       stop_words=stop_words)
+    tfidf = tfidf_vectorizer.fit_transform(clean)
+
+    # Fit the NMF model
+    nmf = NMF(n_components=n_topics, random_state=1,
+              alpha=.1, l1_ratio=.5).fit(tfidf)
+
+    #Leave this turned off unless you want to print.
+    #tfidf_feature_names = tfidf_vectorizer.get_feature_names()
+    #print_top_words(nmf, tfidf_feature_names, n_top_words)
+
+    '''
+    #Assign topics to descriptions:
+    #These are from the full data.  Do NOT use these descriptions on any subset, as they will not match.
+    topic_dict = {0:'dinner_party', 1:'educational', 2:'social_networks', 3:'logistics', 4: 'business', 5:'university',
+                  6:'club_logistics', 7:'workshop', 8:'club_content'}
+    '''
+    topic_dict = {0:'topic1', 1:'topic2', 2:'topic3', 3:'topic4', 4: 'topic5', 5:'topic6',
+                  6:'topic7', 7:'topic8', 8:'topic9'}
+
+
+    W = nmf.transform(tfidf)
+    df['topic_index'] = np.argmax(W, axis=1)
+    df['topic_index'] = df['topic_index'].replace(topic_dict)
+
+    ###Create dummy variables to insert into model
+    topic_dummies = pd.get_dummies(df['topic_index']).rename(columns = lambda x: 'topic_'+str(x))
+    df = pd.concat([df,topic_dummies],axis=1)
+    return df
+
 def smote(X, y, target, k=None):
 	"""
 	INPUT:
@@ -127,38 +200,39 @@ def smote(X, y, target, k=None):
 	X_oversampled, y_oversampled - oversampled data
 	`smote` generates new observations from the positive (minority) class:
 	For details, see: https://www.jair.org/media/953/live-953-2037-jair.pdf
-	"""
-	if target <= sum(y)/float(len(y)):
-	return X, y
-	if k is None:
-	k = len(X)**.5
-	# fit kNN model
-	knn = KNeighborsClassifier(n_neighbors=k)
-	knn.fit(X[y==1], y[y==1])
-	neighbors = knn.kneighbors()[0]
-	positive_observations = X[y==1]
-	# determine how many new positive observations to generate
-	positive_count = sum(y)
-	negative_count = len(y) - positive_count
-	target_positive_count = target*negative_count / (1. - target)
-	target_positive_count = int(round(target_positive_count))
-	number_of_new_observations = target_positive_count - positive_count
-	# generate synthetic observations
-	synthetic_observations = np.empty((0, X.shape[1]))
-	while len(synthetic_observations) < number_of_new_observations:
-	obs_index = np.random.randint(len(positive_observations))
-	observation = positive_observations[obs_index]
-	neighbor_index = np.random.choice(neighbors[obs_index])
-	neighbor = X[neighbor_index]
-	obs_weights = np.random.random(len(neighbor))
-	neighbor_weights = 1 - obs_weights
-	new_observation = obs_weights*observation + neighbor_weights*neighbor
-	synthetic_observations = np.vstack((synthetic_observations, new_observation))
+	# """
+	# if target <= sum(y)/float(len(y)):
+	# 	return X, y
+	# if k is None:
+	# k = len(X)**.5
+	# # fit kNN model
+	# knn = KNeighborsClassifier(n_neighbors=k)
+	# knn.fit(X[y==1], y[y==1])
+	# neighbors = knn.kneighbors()[0]
+	# positive_observations = X[y==1]
+	# # determine how many new positive observations to generate
+	# positive_count = sum(y)
+	# negative_count = len(y) - positive_count
+	# target_positive_count = target*negative_count / (1. - target)
+	# target_positive_count = int(round(target_positive_count))
+	# number_of_new_observations = target_positive_count - positive_count
+	# # generate synthetic observations
+	# synthetic_observations = np.empty((0, X.shape[1]))
+	# while len(synthetic_observations) < number_of_new_observations:
+	# obs_index = np.random.randint(len(positive_observations))
+	# observation = positive_observations[obs_index]
+	# neighbor_index = np.random.choice(neighbors[obs_index])
+	# neighbor = X[neighbor_index]
+	# obs_weights = np.random.random(len(neighbor))
+	# neighbor_weights = 1 - obs_weights
+	# new_observation = obs_weights*observation + neighbor_weights*neighbor
+	# synthetic_observations = np.vstack((synthetic_observations, new_observation))
 
-	X_smoted = np.vstack((X, synthetic_observations))
-	y_smoted = np.concatenate((y, [1]*len(synthetic_observations)))
+	# X_smoted = np.vstack((X, synthetic_observations))
+	# y_smoted = np.concatenate((y, [1]*len(synthetic_observations)))
 
-	return X_smoted, y_smoted
+	# return X_smoted, y_smoted
+	pass
 
 
 def smote2(X, y, target, k=None):
@@ -173,6 +247,7 @@ def smote2(X, y, target, k=None):
 	`smote` generates new observations from the positive (minority) class:
 	For details, see: https://www.jair.org/media/953/live-953-2037-jair.pdf
 	"""
+	'''
 
 	y_zeros = y[y==0]
 	X_zeros = X[y==0]
@@ -216,4 +291,5 @@ def smote2(X, y, target, k=None):
 	y_smoted = np.concatenate((y_ones, y_zeros, y_synth),axis=1)
 
 	return X_smoted, y_smoted
-
+	'''
+	pass
