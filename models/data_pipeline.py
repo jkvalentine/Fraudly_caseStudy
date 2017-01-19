@@ -46,14 +46,6 @@ def get_data():
 
 
 def feature_engineering(df):
-	# Make a single binary column for fraud
-	if "acct_type" in df.columns:
-		df['fraud'] = 0
-		df.loc[df['acct_type'] == 'fraudster_event', 'fraud'] = 1
-		df.loc[df['acct_type'] == 'fraudster', 'fraud'] = 1
-		df.loc[df['acct_type'] == 'fraudster_att', 'fraud'] = 1
-	#Check
-	#print "Should be 1293, it is... "+ sum(df['fraud']).  It is! :)
 
 	# are there any previous payouts?
 
