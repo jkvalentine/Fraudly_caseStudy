@@ -13,7 +13,7 @@ app = Flask(__name__)
 PORT = 8080
 
 #unpickle model
-with open('rf.pickle') as f:
+with open('gdbr.pickle') as f:
 	model = pickle.load(f)
 
 #unpickle tfidf
