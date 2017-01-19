@@ -4,7 +4,7 @@ import requests
 import socket
 import time
 import pandas as pd
-import models.data_pipeline 
+from models import data_pipeline
 from datetime import datetime
 
 #Initialize pickle app
