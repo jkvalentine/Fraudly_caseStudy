@@ -1,3 +1,4 @@
+from __future__ import division
 import pandas as pd
 import numpy as np
 from sklearn.cross_validation import train_test_split, cross_val_score
@@ -44,6 +45,7 @@ def get_data():
 	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.3, random_state=1234)
 	return X_train, X_test, y_train, y_test
 
+
 def feature_engineering(df):
 
 	# are there any previous payouts?
@@ -66,9 +68,9 @@ def feature_engineering(df):
 	#num of tix for sale (from ticket types)
 	df['num_tix_total'] = df.ticket_types.apply(get_tix, args=("quantity_total",))
 	# num of tix sold (from ticket types)
-	df['num_tix_sold_by_event'] = df.ticket_types.apply(get_tix, args=("quantity_sold",))
+	df['num_tix_sold_by_event'] = df.ticket_types.apply(get_tix, args=("quantity_sold",))	
 	# previous tix sold (from previous_payouts)
-	df['num_payouts'] = df.previous_payouts.apply(lambda x: len(x))
+	df['num_payouts'] = df.previous_payouts.apply(lambda x: len(x))	
 
 	#emails:
 	df['email_gmail'] = (df.email_domain == "gmail.com").astype(int)
@@ -94,11 +96,41 @@ def feature_engineering(df):
 	# get proportion of caps
 	df['caps_proportion'] = df['description'].apply(caps_prop)
 
-	# make columns according to latent topics
+	# make columns according to topics from naive bayes classifier
 	# df = topic_dummies(df)
-	cols_to_keep = ['has_previous_payouts', 'gts_is_0', 'gts_less_10', 'gts_less_25', 'venue_outside_user_country', 'num_tix_total', 'num_tix_sold_by_event', 'num_payouts', 'email_gmail', 'email_yahoo', 'email_hotmail','email_aol','email_com', 'email_org', 'email_edu','approx_payout_date', 'sale_duration2', 'num_order', 'body_length', 'high_fraud_country', 'exclamation_points']
+	for i in range(df.shape[0]): 
+		df.iloc[i,:]['topic']
 
+	cols_to_keep = ['has_previous_payouts', 'gts_is_0', 'gts_less_10', 'gts_less_25', 'venue_outside_user_country', 'num_tix_total', 'num_tix_sold_by_event', 'num_payouts', 'email_gmail', 'email_yahoo', 'email_hotmail','email_aol','email_com', 'email_org', 'email_edu','approx_payout_date', 'sale_duration2', 'num_order', 'body_length', 'high_fraud_country', 'exclamation_points', 'caps_proportion']
 	return df[cols_to_keep]
+
+def predict(one_line):
+   #Expects one line df of new data
+
+   def get_text(cell):
+       return BeautifulSoup(cell, 'html.parser').get_text()
+
+   clean_text = one_line['description'].apply(get_text)
+
+   with open('vectorizer3.pkl') as f:
+       vectorizer = pickle.load(f)
+   with open('model3.pkl') as f:
+       model = pickle.load(f)
+
+   def make_prediction(text):
+       if not text.empty:
+           X = vectorizer.transform(text)
+           prediction = model.predict(X)[0]
+           return prediction
+   prediction = make_prediction(clean_text)
+
+   topic_dict = {'topic1':0, 'topic2':1, 'topic3':2, 'topic4':3, 'topic5':4, 'topic6':5,
+                 'topic7':6, 'topic8':7, 'topic9':8}
+   prediction = topic_dict[prediction]
+
+   one_line['predicted_topic'] = prediction
+
+   return one_line
 
 
 def count_bangs(description_string):
@@ -108,6 +140,8 @@ def count_bangs(description_string):
 def caps_prop(description_string):
    if description_string:
        return len(filter(lambda x: x in string.uppercase, description_string))/len(description_string)
+   else:
+   		return .045 #this is the mean of the values from the training set
 
 def scale_data(x_train, x_test):
 	scaler = preprocessing.StandardScaler()
@@ -127,7 +161,7 @@ def test_train_split(X, y):
 	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.3)
 	return X_train, X_test, y_train, y_test
 
-def replace_delivery_nans(df):
+def replace_delivery_nans(df): 
 	df['delivery_method'].ix[df['delivery_method'].isnull()] = 10.0
 	return df
 
@@ -137,67 +171,11 @@ def get_tix(ticket_types, value):
 		total += ticket[value]
 	return total
 
-def topic_dummies(df):
-
-    #CLEAN HTML FUNCTION
-    def get_text(cell):
-        return BeautifulSoup(cell, 'html.parser').get_text()
-
-    #Parse descriptions using html function above:
-    df['description'] = df['description'].apply(get_text)
-    df['org_desc'] = df['org_desc'].apply(get_text)
-    clean = df['description']
-
-    #All the parameters for the topic modeling.
-    n_samples = len(clean)
-    n_features = 500
-    n_topics = 9
-    n_top_words = 30
-
-    my_additional_stopwords = ["la", "et", "en", "le", "les", "des", 'january', 'february',
-                           'march', 'april', 'may', 'june', 'july', 'august', 'september',
-                           'october', 'november', 'december', 'friday', 'thursday', 'saturday']
-    stop_words = text.ENGLISH_STOP_WORDS.union(my_additional_stopwords)
-
-
-    # Use tf-idf features for NMF.
-    tfidf_vectorizer = TfidfVectorizer(max_df=0.95, min_df=2,
-                                       max_features=n_features,
-                                       stop_words=stop_words)
-    tfidf = tfidf_vectorizer.fit_transform(clean)
-
-    # Fit the NMF model
-    nmf = NMF(n_components=n_topics, random_state=1,
-              alpha=.1, l1_ratio=.5).fit(tfidf)
-
-    #Leave this turned off unless you want to print.
-    #tfidf_feature_names = tfidf_vectorizer.get_feature_names()
-    #print_top_words(nmf, tfidf_feature_names, n_top_words)
-
-    '''
-    #Assign topics to descriptions:
-    #These are from the full data.  Do NOT use these descriptions on any subset, as they will not match.
-    topic_dict = {0:'dinner_party', 1:'educational', 2:'social_networks', 3:'logistics', 4: 'business', 5:'university',
-                  6:'club_logistics', 7:'workshop', 8:'club_content'}
-    '''
-    topic_dict = {0:'topic1', 1:'topic2', 2:'topic3', 3:'topic4', 4: 'topic5', 5:'topic6',
-                  6:'topic7', 7:'topic8', 8:'topic9'}
-
-
-    W = nmf.transform(tfidf)
-    df['topic_index'] = np.argmax(W, axis=1)
-    df['topic_index'] = df['topic_index'].replace(topic_dict)
-
-    ###Create dummy variables to insert into model
-    topic_dummies = pd.get_dummies(df['topic_index']).rename(columns = lambda x: 'topic_'+str(x))
-    df = pd.concat([df,topic_dummies],axis=1)
-    return df
-
 def smote(X, y, target, k=None):
 	"""
 	INPUT:
 	X, y - your data
-	target - the percentage of positive class
+	target - the percentage of positive class 
 	     observations in the output
 	k - k in k nearest neighbors
 	OUTPUT:
@@ -243,7 +221,7 @@ def smote2(X, y, target, k=None):
 	"""
 	INPUT:
 	X, y - your data
-	target - the percentage of positive class
+	target - the percentage of positive class 
 	     observations in the output
 	k - k in k nearest neighbors
 	OUTPUT:
@@ -262,23 +240,23 @@ def smote2(X, y, target, k=None):
 	else:
 	y_minority = y_ones
 	X_minority = X_ones
-	# fit a KNN model
-	# This has to be called on the minority bunch only!!!!!
+	# fit a KNN model    
+	# This has to be called on the minority bunch only!!!!!    
 	nbrs = NearestNeighbors(n_neighbors=k, algorithm='ball_tree').fit(X_minority)
 	distances, indices = nbrs.kneighbors(X_minority)
-	# determine how many new positive observations to generate
-	target = float(target)
+	# determine how many new positive observations to generate    
+	target = float(target)    
 	N_new_data = (len(y)*target - len(y_minority))/(1-target)
 	# adding to the zeros
 	ind_new = np.random.randint(0,len(y_minority),N_new_data)
 	# generate synthetic observations
 	y_synth = np.zeros(len(N_new_data))
-	X_synth = []
+	X_synth = []        
 	for value in ind_new:
-	r = np.random(0, k)
+	r = np.random(0, k)           
 	neighbor_index = indices[value, r]
-	distances = np.random.random(0, 1, len(X_minority.columns))
-	new_point = X_minority[value] + distances*(X_minority[value]-X_minority[neighbor_index])
+	distances = np.random.random(0, 1, len(X_minority.columns))            
+	new_point = X_minority[value] + distances*(X_minority[value]-X_minority[neighbor_index])            
 	X_synth.append = new_point
 	# combine synthetic observations with original observations
 	X_smoted = np.concatenate((X_ones, X_zeros, X_synth),axis=1)
